@@ -1,0 +1,25 @@
+{
+  "name": "lc-color-picker",
+  "description": "Pure javascript colorpicker for modern web. Supporting solid colors, opacity and gradients",
+  "main": [
+  	"lc_color_picker.min.js",
+  ],
+  "keywords": [
+    "javascript",
+    "color-picker",
+    "vanilla-javascript",
+    "gradient",
+    "javascript-plugin",
+    "gradients",
+    "linear-gradient",
+    "radial-gradient",
+    "linear-gradient-generator"
+  ],
+  "authors": [
+    "Luca Montanari (https://lcweb.it)"
+  ],
+  "license": "MIT",
+  "homepage": "https://lcweb.it/lc-color-picker-javascript-plugin",
+  "dependencies": {},
+  "ignore": []
+}
