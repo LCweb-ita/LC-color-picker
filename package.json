@@ -1,0 +1,49 @@
+{
+  "author": "LCweb",
+  "name": "LC color picker",
+  "version": "1.0.1",
+  "description": "Pure javascript colorpicker for modern web. Supporting solid colors, opacity and gradients.",
+  "keywords": [
+    "javascript",
+    "color-picker",
+    "vanilla-javascript",
+    "gradient",
+    "javascript-plugin",
+    "gradients",
+    "linear-gradient",
+    "radial-gradient",
+    "linear-gradient-generator"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LCweb-ita/LC-color-picker.git"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "contributors": [
+    {
+      "name": "LCweb-ita",
+      "url": "https://github.com/LCweb-ita"
+    },
+  ],
+  "license": "MIT",
+  "homepage": "https://lcweb.it/lc-color-picker-javascript-plugin",
+  "bugs": "https://github.com/LCweb-ita/LC-color-picker/issues",
+  "_extra": {
+    "title": "LC color picker",
+    "license": {
+      "type": "MIT",
+      "url": "https://github.com/LCweb-ita/LC-color-picker/blob/main/LICENSE"
+    },
+    "links": {
+      "download": "https://github.com/LCweb-ita/LC-color-picker/releases",
+      "docs": "https://github.com/LCweb-ita/LC-color-picker"
+    },
+    "main": [
+      "lc_color_picker.min.js",
+    ],
+    "files": [
+      "lc_color_picker.min.js",
+    ]
+  }
+}

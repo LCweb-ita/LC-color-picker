@@ -1,6 +1,6 @@
 /**
  * lc_color_picker.js - The colorpicker for modern web
- * Version: 1.0
+ * Version: 1.0.1
  * Author: Luca Montanari aka LCweb
  * Website: https://lcweb.it
  * Licensed under the MIT license
@@ -38,7 +38,7 @@
         transparency    : true, // (bool) whether to allow colors transparency tune
         dark_theme      : false, // (bool) whether to enable dark picker theme
         no_input_mode   : false, // (bool) whether to stretch the trigger in order to cover the whole input field
-        copy_input_width: true, // (bool) whether to inherit input field width 
+        copy_input_width: false, // (bool) whether to inherit input field width 
         preview_style   : { // (object) defining shape and position of the in-field preview
             input_padding   : 35, // extra px padding eventually added to the target input to not cover text
             side            : 'right', // right or left
@@ -186,21 +186,20 @@
             
             let div = document.createElement('div');
             div.className = 'lccp-preview-'+ options.preview_style.side;
+            div.setAttribute('data-for', el.getAttribute('name'));
             
             // static width from input?
             if(options.copy_input_width) {
                 div.style.width = Math.round(el.offsetWidth) + 'px'; 
             }
             
+            div.classList.add("lccp-el-wrap");
             div.innerHTML = 
                 '<span class="lccp-preview-bg" style="'+ trigger_css +'"></span>' +
-                '<span id="'+ uniqid +'" class="lccp-preview" style="'+ trigger_upper_css +'" title="'+ options.labels[0] +'"></span>' + el.outerHTML;
-            
-            div.getElementsByTagName( el.tagName )[0].value = el.value; // keep values that might have been changed before init
-            div.classList.add("lccp-el-wrap");
+                '<span id="'+ uniqid +'" class="lccp-preview" style="'+ trigger_upper_css +'" title="'+ options.labels[0] +'"></span>';
 
             el.parentNode.insertBefore(div, el);
-            el.remove();
+            div.appendChild(el);
             
             // input padding
             if(!options.no_input_mode) {
@@ -893,7 +892,7 @@
             
             // toggle grad fields
             if(options.modes.length > 1) {
-                document.querySelector('.pccp_deg_f_wrap').style.display = (new_mode == 'linear-gradient') ? 'block' : 'none';
+                document.querySelector('.pccp_deg_f_wrap').style.display = (new_mode == 'linear-gradient') ? 'flex' : 'none';
                 document.querySelector('.pccp_circle_f_wrap').style.display = (new_mode == 'radial-gradient') ? 'block' : 'none';
             } 
             
