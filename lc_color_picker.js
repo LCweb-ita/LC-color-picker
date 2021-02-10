@@ -1,6 +1,6 @@
 /**
  * lc_color_picker.js - The colorpicker for modern web
- * Version: 1.0.1
+ * Version: 1.1
  * Author: Luca Montanari aka LCweb
  * Website: https://lcweb.it
  * Licensed under the MIT license
@@ -9,7 +9,9 @@
 
 (function() { 
 	"use strict";
-      
+    if(typeof(window.lc_color_picker) != 'undefined') {return false;} // prevent multiple script inits  
+    
+    
     /*** vars ***/
     let debounced_vars  = [],
         window_width   = null,
@@ -32,13 +34,14 @@
         };
     
     
-    
+    /*** default options ***/
     const def_opts = {
         modes           : ['solid', 'linear-gradient', 'radial-gradient'], // (array) containing supported modes (solid | linear-gradient | radial-gradient) 
+        open_on_focus   : true, // (bool) whether to open the picker when field is focused
         transparency    : true, // (bool) whether to allow colors transparency tune
         dark_theme      : false, // (bool) whether to enable dark picker theme
         no_input_mode   : false, // (bool) whether to stretch the trigger in order to cover the whole input field
-        copy_input_width: false, // (bool) whether to inherit input field width 
+        wrap_width      : 'auto', // (string) defines the wrapper width. "auto" to leave it up to CSS, "inherit" to statically copy input field width, or any other CSS sizing 
         preview_style   : { // (object) defining shape and position of the in-field preview
             input_padding   : 35, // extra px padding eventually added to the target input to not cover text
             side            : 'right', // right or left
@@ -77,6 +80,11 @@
             if(trigger.contains(e.target)) {
                 return true; 
             }    
+        }
+        
+        // clicked on the colorpicker field? keep visible
+        if(e.target.parentNode.classList.contains('lccp-el-wrap')) {
+            return true;    
         }
 
         // close if clicked element is not in the picker
@@ -123,7 +131,7 @@
     
         this.attachTo = attachTo;
         if(!this.attachTo) {
-            return console.error('You must provide object as a first argument')
+            return console.error('You must provide a valid selector string first argument');
         }
     
         // override options
@@ -189,8 +197,8 @@
             div.setAttribute('data-for', el.getAttribute('name'));
             
             // static width from input?
-            if(options.copy_input_width) {
-                div.style.width = Math.round(el.offsetWidth) + 'px'; 
+            if(options.wrap_width != 'auto') {
+                div.style.width = (options.wrap_width == 'inherit') ? Math.round(el.getBoundingClientRect().width) + 'px' : options.wrap_width; 
             }
             
             div.classList.add("lccp-el-wrap");
@@ -214,10 +222,22 @@
             const trigger = document.getElementById(uniqid);
             trigger.addEventListener("click", (e) => {this.show_picker(trigger)}); 
             
+            // show on field focus?
+            if(options.open_on_focus) {
+                div.querySelector('input').addEventListener("focus", (e) => {
+                    if(trigger != active_trigger) {
+                        $this.debounce('open_on_focus', 100, 'show_picker', trigger); 
+                    }
+                });
+            }
+            
             // sync manually-inputed data in the field
             div.querySelector('input').addEventListener("keyup", (e) => {
                 active_trigger = trigger;
-                $this.debounce('manual_input_sync', 700, 'val_to_picker', true); 
+                $this.debounce('manual_input_sync', 700, 'val_to_picker', true);
+                
+                let wtd = (options.open_on_focus) ? true : false;
+                $this.debounce('manual_input_sync_cp', 700, 'append_color_picker', wtd);
             });
         };
         
@@ -312,18 +332,17 @@
                     active_gradient = val;        
                 }
             }
-            
-  
             active_trigger.style.background = val;
             
-            if(!from_manual_input) {
+            if(!from_manual_input || (from_manual_input && options.open_on_focus)) {
                 // elaborate solid color data (color and alpha)
                 this.load_solid_data(active_solid);
 
                 // elaborate gradient data
                 this.load_gradient_data(active_gradient);
             }
-            else {
+            
+            if(from_manual_input && !options.open_on_focus) {
                 active_trigger = false;    
             }
         };
@@ -531,20 +550,31 @@
         
         
         /* append color container picker to the body */
-        this.append_color_picker = function() {
-            if(document.getElementById("lc-color-picker")) {
+        this.append_color_picker = function(on_manual_input_change = false) {
+            const $this = this;
+            
+            if(document.getElementById("lc-color-picker") && !on_manual_input_change) {
                 document.getElementById("lc-color-picker").remove();
             }
             
-            const   $this           = this,
-                    theme_class     = (options.dark_theme) ? 'lccp_dark_theme' : 'lccp_light_theme', 
-                    bg              = (active_mode == 'solid') ? active_solid : active_gradient,
-                    shown_solid     = (active_mode == 'solid') ? active_solid : gradient_data.steps[0].color,
-                    shown_opacity   = (active_mode == 'solid') ? active_opacity : (options.transparency) ? gradient_data.steps[0].opacity : null,      
-                    print_grad_code = (options.modes.indexOf('linear-gradient') !== -1 || options.modes.indexOf('radial-gradient') !== -1) ? true : false;
+            const theme_class     = (options.dark_theme) ? 'lccp_dark_theme' : 'lccp_light_theme', 
+                  bg              = (active_mode == 'solid') ? active_solid : active_gradient,
+                  shown_solid     = (active_mode == 'solid') ? active_solid : gradient_data.steps[0].color,
+                  shown_opacity   = (active_mode == 'solid') ? active_opacity : (options.transparency) ? gradient_data.steps[0].opacity : null,      
+                  print_grad_code = (options.modes.indexOf('linear-gradient') !== -1 || options.modes.indexOf('radial-gradient') !== -1) ? true : false;
+            
             
             // start code
-            let picker = '<div id="lc-color-picker" class="'+ theme_class +'" data-mode="'+ active_mode +'">';
+            let picker = '',
+                picker_el;
+            
+            if(on_manual_input_change) { 
+                picker_el = document.getElementById("lc-color-picker");
+                picker_el.setAttribute('data-mode', active_mode);
+            }
+            else {
+                picker = '<div id="lc-color-picker" class="'+ theme_class +'" data-mode="'+ active_mode +'">';
+            }
 
             
             // modes select
@@ -606,7 +636,9 @@
                 </div>`;
             }
             
-            document.body.insertAdjacentHTML('beforeend', picker +'</div>');
+            
+            // append or re-fill
+            (on_manual_input_change) ? picker_el.innerHTML = picker : document.body.insertAdjacentHTML('beforeend', picker +'</div>');
             
             
             // modes change
@@ -1076,6 +1108,12 @@
 .lccp-el-wrap {
     position: relative;
     display: inline-block;
+}
+.lccp-el-wrap > input {
+    margin: 0;
+    min-width: 100%;
+    max-width: 100%;
+    width: auto;
 }
 .lccp-preview,
 .lccp-preview-bg {

@@ -7,7 +7,7 @@ So I decided to build my own solution in **pure javascript** aiming to create th
 
 ### Top features list:
 
-- sigle 30KB file, no dependencies, 100% pure javascript
+- sigle 31KB file, no dependencies, 100% pure javascript
 - supports solid color and/on linear gradient and/or radial gradient
 - unlimited gradient color steps support
 - optional transparency support
@@ -63,14 +63,17 @@ new lc_color_picker('input', {
     // (bool) whether to allow colors transparency tune
     transparency : true, 
     
+    // (bool) whether to open the picker when field is focused
+    open_on_focus : true, 
+    
     // (bool) whether to enable dark picker theme
     dark_theme : false, 
     
     // (bool) whether to stretch the trigger in order to cover the whole input field
     no_input_mode : false, 
     
-    // (bool) whether to inherit input field width 
-    copy_input_width : true, 
+    // (string) defines the wrapper width. "auto" to leave it up to CSS, "inherit" to statically copy input field width, or any other CSS sizing 
+    wrap_width : 'auto',
    
     // (object) defining shape and position of the in-field preview
     preview_style : { 
