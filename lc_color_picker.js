@@ -1,6 +1,6 @@
 /**
  * lc_color_picker.js - The colorpicker for modern web
- * Version: 1.1
+ * Version: 1.1.1
  * Author: Luca Montanari aka LCweb
  * Website: https://lcweb.it
  * Licensed under the MIT license
@@ -160,9 +160,13 @@
             
             
             // assign to each target element
-            const targeted_el = document.querySelectorAll(attachTo);
-            targeted_el.forEach(function(el) {
+            maybe_querySelectorAll(attachTo).forEach(function(el) {
                 if(el.tagName == 'INPUT' && el.getAttribute('type') != 'text') {
+                    return;    
+                }
+                
+                // do not initialize twice
+                if(el.parentNode.classList.length && el.parentNode.classList.contains('lcslt_wrap')) {
                     return;    
                 }
 
@@ -235,9 +239,8 @@
             div.querySelector('input').addEventListener("keyup", (e) => {
                 active_trigger = trigger;
                 $this.debounce('manual_input_sync', 700, 'val_to_picker', true);
-                
-                let wtd = (options.open_on_focus) ? true : false;
-                $this.debounce('manual_input_sync_cp', 700, 'append_color_picker', wtd);
+
+                $this.debounce('manual_input_sync_cp', 700, 'append_color_picker', false);
             });
         };
         
@@ -261,7 +264,7 @@
                   picker_w    = picker.offsetWidth,
                   picker_h    = picker.offsetHeight,
                   at_offsety  = active_trigger.getBoundingClientRect(),
-                  at_h        = parseInt(active_trigger.clientHeight, 10),
+                  at_h        = parseInt(active_trigger.clientHeight, 10) + parseInt(getComputedStyle(active_trigger)['borderTopWidth'], 10) + parseInt(getComputedStyle(active_trigger)['borderBottomWidth'], 10),
                   y_pos       = (parseInt(at_offsety.y, 10) + parseInt(window.pageYOffset, 10) + at_h + 5);
 
             // left pos control - also checking side overflows
@@ -568,7 +571,7 @@
             let picker = '',
                 picker_el;
             
-            if(on_manual_input_change) { 
+            if(on_manual_input_change && document.getElementById("lc-color-picker")) { 
                 picker_el = document.getElementById("lc-color-picker");
                 picker_el.setAttribute('data-mode', active_mode);
             }
@@ -1416,4 +1419,28 @@
         // init when called
         this.init();
     };
+    
+    
+    
+    
+    
+    
+    // UTILITIES
+    
+    // sanitize "selector" parameter allowing both strings and DOM objects
+    const maybe_querySelectorAll = (selector) => {
+             
+        if(typeof(selector) != 'string') {
+            return (selector instanceof Element) ? [selector] : Object.values(selector);   
+        }
+        
+        // clean problematic selectors
+        (selector.match(/(#[0-9][^\s:,]*)/g) || []).forEach(function(n) {
+            selector = selector.replace(n, '[id="' + n.replace("#", "") + '"]');
+        });
+        
+        return document.querySelectorAll(selector);
+    };
+    
+    
 })();
