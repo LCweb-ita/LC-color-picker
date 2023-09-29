@@ -1,7 +1,7 @@
 /**
  * lc_color_picker.js - The colorpicker for modern web
- * Version: 1.1.1
- * Author: Luca Montanari aka LCweb
+ * Version: 2.0.0
+ * Author: Luca Montanari (LCweb)
  * Website: https://lcweb.it
  * Licensed under the MIT license
  */
@@ -18,6 +18,7 @@
     
         style_generated = null,
         active_trigger  = null,
+        active_trig_id  = null,
         
         active_solid    = null,
         active_opacity  = null,
@@ -66,6 +67,22 @@
     };
     
     
+    // shortcut var to target the text input only
+    const right_input_selector = 'input:not([type="color"])';
+    
+    
+    
+    // input value check custom event
+    const lccp_ivc_event = function(picker_id, hide_picker = false) {
+        return new CustomEvent('lccp_input_val_check', {
+            bubbles : true,
+            detail: {
+                picker_id   : picker_id,
+                hide_picker : hide_picker   
+            }
+        });
+    };
+
     
     
     /*** hide picker cicking outside ***/
@@ -82,16 +99,17 @@
             }    
         }
         
-        // clicked on the colorpicker field? keep visible
-        if(e.target.parentNode.classList.contains('lccp-el-wrap')) {
+        // clicked on the same colorpicker field? keep visible
+        if(e.target.parentNode && e.target.parentNode.classList && e.target.parentNode.classList.contains('lccp-el-wrap') && document.getElementById(active_trig_id)) {
             return true;    
         }
 
         // close if clicked element is not in the picker
         if(!picker.contains(e.target) && !e.target.classList.contains('lccp-shown')) {
-            picker.classList.remove('lccp-shown');
-            document.getElementById("lc-color-picker").remove();
-            active_trigger = null;
+            const picker_id = picker.getAttribute('data-trigger-id'),
+            $input = document.getElementById(picker_id).parentNode.querySelector(right_input_selector);
+            
+            $input.dispatchEvent(lccp_ivc_event(picker_id, true));
         }
         return true;
     });
@@ -104,10 +122,11 @@
             return true;    
         }
 
-        picker.classList.remove('lccp-shown');
-        active_trigger = null;
+        // check field value
+        const picker_id = picker.getAttribute('data-trigger-id'),
+              $input = document.getElementById(picker_id).parentNode.querySelector(right_input_selector);
         
-        return true;
+        $input.dispatchEvent(lccp_ivc_event(picker_id, true));
     });
     
     
@@ -128,7 +147,9 @@
     
     /*** plugin class ***/
     window.lc_color_picker = function(attachTo, options = {}) {
-    
+        let cp_uniqid, // unique ID assigned to this colorpicker instance
+            last_tracked_col;
+        
         this.attachTo = attachTo;
         if(!this.attachTo) {
             return console.error('You must provide a valid selector string first argument');
@@ -178,8 +199,9 @@
         
         /* wrap target element to allow trigger display */
         this.wrap_element = function(el) {
+            cp_uniqid = Math.random().toString(36).substr(2, 9);
+            
             const $this     = this,
-                  uniqid    = Math.random().toString(36).substr(2, 9),
                   side_prop = (options.preview_style.side == 'right') ? 'borderRightWidth' : 'borderLeftWidth';
 
             let trigger_css =
@@ -205,10 +227,14 @@
                 div.style.width = (options.wrap_width == 'inherit') ? Math.round(el.getBoundingClientRect().width) + 'px' : options.wrap_width; 
             }
             
+            const direct_colorpicker_code = (!options.transparency && options.modes.length == 1 && options.modes[0] == 'solid') ? 
+                '<input type="color" name="'+ cp_uniqid +'_direct_cp" value="'+ el.value +'" class="lccp-direct-cp-f" />' : '';
+            
             div.classList.add("lccp-el-wrap");
             div.innerHTML = 
                 '<span class="lccp-preview-bg" style="'+ trigger_css +'"></span>' +
-                '<span id="'+ uniqid +'" class="lccp-preview" style="'+ trigger_upper_css +'" title="'+ options.labels[0] +'"></span>';
+                '<span id="'+ cp_uniqid +'" class="lccp-preview" style="'+ trigger_upper_css +'" title="'+ options.labels[0] +'"></span>' +
+                direct_colorpicker_code;
 
             el.parentNode.insertBefore(div, el);
             div.appendChild(el);
@@ -216,31 +242,124 @@
             // input padding
             if(!options.no_input_mode) {
                 if(options.preview_style.side == 'right') {
-                    div.querySelector('input').style.paddingRight = options.preview_style.input_padding +'px';
+                    div.querySelector('input:not([type="color"])').style.paddingRight = options.preview_style.input_padding +'px';
                 } else {
-                    div.querySelector('input').style.paddingLeft = options.preview_style.input_padding +'px';      
+                    div.querySelector('input:not([type="color"])').style.paddingLeft = options.preview_style.input_padding +'px';      
                 }
             }
             
+            
+            // direct browser colorpicker? track changes
+            if(div.querySelector('.lccp-direct-cp-f')) {
+                div.querySelector('.lccp-direct-cp-f').addEventListener("input", (e) => {
+                    
+                    div.querySelector('input:not([type="color"])').value = e.target.value;
+                    div.querySelector('.lccp-preview').style.background = e.target.value;
+                });        
+            }
+            
+            
             // event to show picker
-            const trigger = document.getElementById(uniqid);
-            trigger.addEventListener("click", (e) => {this.show_picker(trigger)}); 
+            const trigger = document.getElementById(cp_uniqid);
+            trigger.addEventListener("click", (e) => {
+                this.show_picker(trigger);
+            }); 
+            
+            
             
             // show on field focus?
             if(options.open_on_focus) {
-                div.querySelector('input').addEventListener("focus", (e) => {
+                div.querySelector(right_input_selector).addEventListener("focus", (e) => {
                     if(trigger != active_trigger) {
-                        $this.debounce('open_on_focus', 100, 'show_picker', trigger); 
+                        if(active_trigger) {
+                            document.getElementById('lc-color-picker').classList.remove('lccp-shown');
+                            active_trigger = null;
+                        }
+                        
+                        $this.debounce('open_on_focus', 10, 'show_picker', trigger); 
                     }
                 });
             }
             
+            
             // sync manually-inputed data in the field
-            div.querySelector('input').addEventListener("keyup", (e) => {
+            div.querySelector(right_input_selector).addEventListener("keyup", (e) => {
+                if(e.keyCode == 9 || e.key === 'Enter' || e.keyCode === 13) {
+                    return;   
+                }
+                
+                const is_active_trigger_and_opened = (active_trig_id = cp_uniqid && document.querySelector("#lc-color-picker.lccp-shown")) ? true : false;
+                
                 active_trigger = trigger;
-                $this.debounce('manual_input_sync', 700, 'val_to_picker', true);
-
-                $this.debounce('manual_input_sync_cp', 700, 'append_color_picker', false);
+                active_trig_id = cp_uniqid;
+                
+                $this.debounce('manual_input_sync', 510, 'val_to_picker', true);
+                
+                if(is_active_trigger_and_opened) {
+                    $this.debounce('manual_input_sync_cp', 500, 'append_color_picker', false);
+                    $this.debounce('reopen_picker_after_manual_edit', 510, 'show_picker', trigger);
+                }
+            });
+            
+            
+            // be sure input value is managed on focusout
+            div.querySelector(right_input_selector).addEventListener("focusout", (e) => {
+                // not if this field's picker is shown and focus is on "body"
+                if(document.activeElement.tagName == 'BODY' && document.querySelector('#lc-color-picker.lccp-shown[data-trigger-id="'+ active_trig_id +'"]')) {
+                    return true;    
+                }
+                
+                e.target.dispatchEvent(lccp_ivc_event(active_trig_id, true));
+            });
+            
+            
+            // custom event - check field validity and eventually use fallback values
+            div.querySelector(right_input_selector).addEventListener("lccp_input_val_check", (e) => {
+                const curr_val = e.target.value,
+                      test = document.createElement('div');
+                
+                test.style.background = curr_val;
+                let browser_val = test.style.background,
+                    val_to_set;
+                
+                if(!curr_val.trim().length || !browser_val) {
+                    if(e.target.value.toLowerCase().indexOf('gradient') === -1) {
+                        val_to_set = (options.fallback_colors[0].toLowerCase().indexOf('rgba') === -1) ? $this.RGB_to_hex(options.fallback_colors[0]) : options.fallback_colors[0];   
+                    }
+                    else {
+                        val_to_set = options.fallback_colors[1];     
+                    }
+                }
+                else {
+                    // browser already fixes minor things
+                    browser_val = browser_val.replaceAll('0.', '.').replace(/rgb\([^\)]+\)/g, (rgb) => {
+                        return $this.RGB_to_hex(rgb);
+                    });
+                    
+                    val_to_set = (browser_val.trim().toLowerCase().substr(0, 4) == 'rgb(') ? $this.RGB_to_hex(browser_val) : browser_val; 
+                }
+                
+                if(val_to_set != curr_val) {
+                    e.target.value = val_to_set;
+                }
+                
+                if(typeof(options.on_change) == 'function' && last_tracked_col != val_to_set) {
+                    options.on_change.call($this, val_to_set, e.target);
+                }
+                
+                if(e.detail.picker_id == active_trig_id) {
+                    active_trigger = null;
+                    active_trig_id = null;
+                }
+                
+                
+                // also hide picker?
+                const $target = document.querySelector('#lc-color-picker.lccp-shown[data-trigger-id="'+ e.detail.picker_id +'"]');
+                if($target) {
+                    
+                    $target.classList.remove('lccp-shown');
+                    document.getElementById("lc-color-picker").remove(); 
+                }
             });
         };
         
@@ -248,14 +367,32 @@
         
         /* show picker */
         this.show_picker = function(trigger) {
-            if(trigger == active_trigger) {
+            if(document.querySelector('#lc-color-picker.lccp-shown[data-trigger-id="'+ active_trig_id +'"]')) {
                 document.getElementById("lc-color-picker").remove();
                 active_trigger = null;
+                active_trig_id = null
+                
                 return false;
             }
             
+            // direct colorpicker usage? Not for Firefox is "show on focus" is enabled
+            const direct_colorpicker = trigger.parentNode.querySelector('.lccp-direct-cp-f');
+            if(
+                direct_colorpicker && 
+                (
+                    !options.open_on_focus || 
+                    (options.open_on_focus && !navigator.userAgent.toLowerCase().includes('firefox'))
+                )
+            ) {
+                direct_colorpicker.value = active_solid; 
+                direct_colorpicker.click();
+                return true;   
+            }
+            
+            
             window_width = window.innerWidth;
             active_trigger = trigger;
+            active_trig_id = cp_uniqid;
             
             this.val_to_picker();
             this.append_color_picker();
@@ -291,8 +428,12 @@
         
         /* handles input value and prepres data for the picker */
         this.val_to_picker = function(from_manual_input) {
-            const val = active_trigger.parentNode.querySelector('input').value.trim().toLowerCase();   
-           
+            if(!active_trigger) {
+                return false;    
+            }
+            const val = active_trigger.parentNode.querySelector(right_input_selector).value.trim().toLowerCase();   
+            last_tracked_col = val;
+            
             // check validity
             let test = document.createElement('div');
             test.style.background = val;
@@ -342,11 +483,9 @@
                 this.load_solid_data(active_solid);
 
                 // elaborate gradient data
-                this.load_gradient_data(active_gradient);
-            }
-            
-            if(from_manual_input && !options.open_on_focus) {
-                active_trigger = false;    
+                if(active_gradient) {
+                    this.load_gradient_data(active_gradient);
+                }
             }
         };
         
@@ -393,7 +532,6 @@
                 .replace('bottom right', '135deg').replace('bottom right', '135deg')
                 .replace('top left', '315deg').replace('left top', '315deg')
                 .replace('bottom left', '225deg').replace('bottom left', '225deg')
-                
                 .replace('right', '90deg').replace('left', '270deg').replace('top', '0deg').replace('bottom', '180deg');
                 
             // be sure deg or shape is defined
@@ -477,7 +615,7 @@
             raw_data = raw_data.lccpReplaceArray(['rgba', '\\(', '\\)'], '');
             const rgba_arr = raw_data.split(',')
             
-            let alpha = rgba_arr[3];
+            let alpha = (typeof(rgba_arr[3]) != 'undefined') ? rgba_arr[3] : '1';
             if(alpha.substring(0, 1) == '.') {
                 alpha = 0 + alpha;
             }
@@ -490,10 +628,15 @@
         };
         
         
+        
         /* convert RGB to hex */
         this.RGB_to_hex = function(rgb) {
             rgb = rgb.lccpReplaceArray(['rgb', '\\(', '\\)'], '');
             const rgb_arr = rgb.split(',');
+            
+            if(rgb_arr.length < 3) {
+                return '#000';    
+            }
             
             let r = parseInt(rgb_arr[0].trim(), 10).toString(16),
                 g = parseInt(rgb_arr[1].trim(), 10).toString(16),
@@ -502,9 +645,29 @@
             if (r.length == 1) {r = "0" + r;}
             if (g.length == 1) {g = "0" + g;}
             if (b.length == 1) {b = "0" + b;}
-
-            return "#" + r + g + b;
+            
+            return this.shorten_hex(r + g + b);
         };
+        
+        
+        
+        /* if possible, shortenize hex string */
+        this.shorten_hex = function(hex) {
+            hex = hex.replace('#', '').split('');
+            
+            if(hex.length >= 6) {
+                if(
+                    hex[0] === hex[1] &&
+                    hex[2] === hex[3] &&
+                    hex[4] === hex[5]
+                ) {
+                    return '#'+ hex[0] + hex[2] + hex[4];      
+                }
+            }
+            
+            return '#'+ hex.join('');
+        };
+        
         
         
         /* convert short hex to full format */
@@ -514,8 +677,9 @@
                 hex = a[0] + a[1] + a[1] + a[2] + a[2] + a[3] + a[3];
             }
 
-            return hex.toUpperCase();
+            return hex.toLowerCase();
         };
+        
         
         
         /* convert hex to RGB */
@@ -535,18 +699,19 @@
                 b = "0x" + h[5] + h[6];
             }
 
-            return "rgb("+ +r + "," + +g + "," + +b + ")";
+            return "rgb("+ +r + ", " + +g + ", " + +b + ")";
         };
+        
         
         
         /* convert hex to RGB */
         this.hex_to_RGBA = function(h, opacity) {
-            if(opacity === 1) {
-                return h;    
+            if(parseFloat(opacity) === 1) {
+                return this.shorten_hex(h);    
             }
             
             let rgb = this.hex_to_RGB(h);
-            return rgb.replace('(', 'a(').replace(')', ','+opacity+')');
+            return rgb.replace('(', 'a(').replace(')', ', '+ opacity.toString().replace('0.', '.') +')');
         };
         
         
@@ -574,9 +739,10 @@
             if(on_manual_input_change && document.getElementById("lc-color-picker")) { 
                 picker_el = document.getElementById("lc-color-picker");
                 picker_el.setAttribute('data-mode', active_mode);
+                picker_el.setAttribute('data-trigger-id', cp_uniqid);
             }
             else {
-                picker = '<div id="lc-color-picker" class="'+ theme_class +'" data-mode="'+ active_mode +'">';
+                picker = '<div id="lc-color-picker" class="'+ theme_class +'" data-mode="'+ active_mode +'" data-trigger-id="'+ cp_uniqid +'">';
             }
 
             
@@ -625,7 +791,7 @@
                 <div>
                     <input type="color" name="color" value="${ shown_solid }" style="opacity: ${ active_opacity };" />
                 </div>
-                <input type="text" name="hex" value="${ shown_solid.toUpperCase() }" />
+                <input type="text" name="hex" value="${ shown_solid.toLowerCase() }" />
             </div>`;
             
             // opacity cursor
@@ -634,14 +800,14 @@
                 <div class="pccp_opacity_f_wrap">
                     <img src=" data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAF9SURBVEiJtda/ihRBEMfxT42D4Jmdq5GHIBqJIHgYGCuIIhcYaGRgYGDsU4i+gqFgJogXivgGwkUmKpqcnhgJJ/4pg5mV3XVmd3q5K+iku+v37e7qrurITH0WEUdwC5dwCiexi21sZub9XufW6h7ho3iEmzg4M/wOm3i/SBxk5lTDDXxB9rRnHT7H8QYX/hubmXgHf+aI9wEO4CW+Yb0T0B7HIvFOQOu/glct5PwUAMfwdYB4L6DVOYzX+DTuGwf5IVYHBW2OZeb3iLiC9cn+EX4OXP3cHXS1qj37zuu6F1bjaqFP/8ucsIi4jtM1ThQCYuC8azhXYa0QUGTVfoqPAR/3E1DjA84U+AwKMl7gba3JjCU3aVCQM/M5zRE9xa8CQJFVmbmDJ3slGBGHIuLiv442SY3MrwFLJ7uqhezgriZdL7vyFU1gz2JjagcTK7iN36U7MKTgzJTMz4WANWxZVDInHEZ4jB8dgC08wL0h6ToWfFtWNd+Wy5b8tvwFZS60TLZpD/8AAAAASUVORK5CYII=" alt="opacity" title="${ options.labels[8] }" />
                     
-                    <input type="range" name="opacity" value="${ shown_opacity }" min="0" max="1" step="0.05" />
+                    <input type="range" name="opacity" value="${ shown_opacity }" min="0" max="1" step="0.01" />
                     <input type="number" name="opacity-num" value="${ shown_opacity }" min="0" max="1" step="0.05" />
                 </div>`;
             }
             
             
             // append or re-fill
-            (on_manual_input_change) ? picker_el.innerHTML = picker : document.body.insertAdjacentHTML('beforeend', picker +'</div>');
+            (on_manual_input_change && document.getElementById("lc-color-picker")) ? picker_el.innerHTML = picker : document.body.insertAdjacentHTML('beforeend', picker +'</div>');
             
             
             // modes change
@@ -665,7 +831,7 @@
                 document.querySelector('.pccp_deg_f_wrap input[type=range]').addEventListener("input", (e) => {this.track_deg_range_change(e)});
                 document.querySelector('.pccp_deg_f_wrap input[name=deg-num]').addEventListener("change", (e) => {this.track_deg_num_change(e)});
                 document.querySelector('.pccp_deg_f_wrap input[name=deg-num]').addEventListener("keyup", (e) => {
-                    this.debounce('deg_f_change', 700, 'track_deg_num_change', e); 
+                    this.debounce('deg_f_change', 500, 'track_deg_num_change', e); 
                 });
             }
             
@@ -680,7 +846,7 @@
             document.querySelector('.pccp_color_f_wrap input[type="color"]').addEventListener("input", (e) => {this.track_color_change(e)});
             document.querySelector('.pccp_color_f_wrap input[type="color"]').addEventListener("change", (e) => {this.track_color_change(e)});
             document.querySelector('.pccp_color_f_wrap input[name=hex]').addEventListener("keyup", (e) => {
-                this.debounce('hex_f_change', 1000, 'track_color_hex_change', e); 
+                this.debounce('hex_f_change', 600, 'track_color_hex_change', e); 
             });
             
             // transparency actions
@@ -688,7 +854,7 @@
                 document.querySelector('.pccp_opacity_f_wrap input[type=range]').addEventListener("input", (e) => {this.track_opacity_range_change(e)});
                 document.querySelector('.pccp_opacity_f_wrap input[name=opacity-num]').addEventListener("change", (e) => {this.track_opacity_num_change(e)});
                 document.querySelector('.pccp_opacity_f_wrap input[name=opacity-num]').addEventListener("keyup", (e) => {
-                    this.debounce('opacity_f_change', 700, 'track_opacity_num_change', e); 
+                    this.debounce('opacity_f_change', 500, 'track_opacity_num_change', e); 
                 });
             }
         };
@@ -734,15 +900,15 @@
                     const min_pos = (!range_id) ? 0 : gradient_data.steps[ range_id-1 ].position; 
                     const max_pos = (range_id == (gradient_data.steps.length - 1)) ? 100 : gradient_data.steps[ range_id+1 ].position; 
 
-                    if(new_pos <= min_pos) {new_pos = min_pos + 1;}
-                    else if(new_pos >= max_pos) {new_pos = max_pos - 1;}
+                    if(new_pos < min_pos) {new_pos = min_pos + 1;}
+                    else if(new_pos > max_pos) {new_pos = max_pos - 1;}
                     
                     gradient_data.steps[ range_id ].position = new_pos;
                     range.style.left = new_pos +'%'; 
                     
                     $this.apply_gradient_changes();
                 }
-            };
+            };+
             /////
 
             document.querySelectorAll('.lccp_gradient_range').forEach(range => {
@@ -836,14 +1002,30 @@
             let colors_part = []
             gradient_data.steps.some(function(step, index) {
                 
-                let to_add = (options.transparency) ? $this.hex_to_RGBA(step.color, step.opacity) : step.color;
-                    to_add += ' '+ step.position +'%';
+                let to_add = (options.transparency) ? $this.hex_to_RGBA(step.color, step.opacity) : $this.shorten_hex(step.color);
+                
+                if(
+                    gradient_data.steps.length > 2 ||
+                    (
+                        gradient_data.steps.length <= 2 && 
+                        (
+                            (!index && parseInt(step.position, 10)) || 
+                            (index && index < (gradient_data.steps.length - 1)) || 
+                            (index == (gradient_data.steps.length - 1) && parseInt(step.position, 10) != 100)
+                        )
+                    )
+                ) {
+                        to_add += ' '+ step.position +'%';
+                    }
                 
                 colors_part.push( to_add );    
             });
             
             active_gradient = new_gradient + colors_part.join(', ') + ')';
-            document.querySelector('.lccp_gradient:not(.lccp_gradient-bg)').style.background = active_gradient;
+            
+            if(document.querySelector('.lccp_gradient:not(.lccp_gradient-bg)')) {
+                document.querySelector('.lccp_gradient:not(.lccp_gradient-bg)').style.background = active_gradient;
+            }
             
             if(also_apply_changes) {
                 this.apply_changes();    
@@ -861,7 +1043,7 @@
             
             // apply everything to picker global vars
             if(active_mode == 'solid') {
-                val = active_solid;
+                val = this.shorten_hex(active_solid);
                 
                 if(options.transparency && document.querySelector('.pccp_opacity_f_wrap input[type=range]')) {
                     active_opacity = document.querySelector('.pccp_opacity_f_wrap input[type=range]').value; 
@@ -875,17 +1057,22 @@
             // apply
             active_trigger.style.background = val;
             
-            const field = active_trigger.parentNode.querySelector('input');
-            field.value = val;
+            const field = active_trigger.parentNode.querySelector(right_input_selector),
+                  old_val = field.value;
             
-            if(typeof(options.on_change) == 'function') {
+            if(old_val != val) {
+                field.value = val;
+                last_tracked_col = val;
                 
-                if(typeof(debounced_vars['on_change_cb']) != undefined && debounced_vars['on_change_cb']) {
-                    clearTimeout(debounced_vars['on_change_cb']);    
+                if(typeof(options.on_change) == 'function') {
+
+                    if(typeof(debounced_vars['on_change_cb']) != undefined && debounced_vars['on_change_cb']) {
+                        clearTimeout(debounced_vars['on_change_cb']);    
+                    }
+                    debounced_vars['on_change_cb'] = setTimeout(() => {
+                        options.on_change.call(this, val, field);                                               
+                    }, 300);  
                 }
-                debounced_vars['on_change_cb'] = setTimeout(() => {
-                    options.on_change.call(this, val, field);                                               
-                }, 100);  
             }
         };
         
@@ -1007,7 +1194,9 @@
             }
             
             e.target.value = val;
-            document.querySelector('.pccp_deg_f_wrap input[type=range]').value = val;
+            if(document.querySelector('.pccp_deg_f_wrap input[type=range]')) {
+                document.querySelector('.pccp_deg_f_wrap input[type=range]').value = val;
+            }
             
             gradient_data.deg = val;
             this.apply_gradient_changes(true);
@@ -1016,7 +1205,7 @@
         
         // track opacity range fields change
         this.track_color_change = function(e) {
-            const val = e.target.value.toUpperCase();
+            const val = e.target.value.toLowerCase();
             document.querySelector('.pccp_color_f_wrap input[name=hex]').value = val;
             
             this.apply_color_change(val);
@@ -1025,7 +1214,7 @@
             let val = this.short_hex_fix(e.target.value);
 
             if(val.match(/^#[a-f0-9]{6}$/i) === null) {
-                val = active_solid.toUpperCase();     
+                val = active_solid.toLowerCase();     
             }
             
             e.target.value = val;
@@ -1059,8 +1248,11 @@
             }
             
             e.target.value = val;
-            document.querySelector('.pccp_opacity_f_wrap input[type=range]').value = val;
-            this.alter_hex_opacity(val);
+            
+            if(document.querySelector('.pccp_opacity_f_wrap input[type=range]')) {
+                document.querySelector('.pccp_opacity_f_wrap input[type=range]').value = val;
+                this.alter_hex_opacity(val);
+            }
         };
         this.alter_hex_opacity = function(opacity) {
             document.querySelector('#lc-color-picker input[type="color"]').style.opacity = opacity;    
@@ -1134,6 +1326,21 @@
 .lccp-preview-left .lccp-preview { 
     border-right: 1px solid #ccc;
 }
+.lccp-direct-cp-f {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    position: absolute;
+    bottom: 0;
+    visibility: hidden;
+}
+.lccp-preview-right .lccp-direct-cp-f { 
+    right: 0;
+}
+.lccp-preview-left .lccp-direct-cp-f{ 
+    left: 0;
+}
 #lc-color-picker,
 #lc-color-picker * {
     box-sizing: border-box;
@@ -1145,7 +1352,7 @@
     opacity: 0;
     position: absolute;
     top: -9999px;
-    z-index: 999;
+    z-index: 9999999999;
     width: 280px;
     background: #fff;
     box-shadow: 0px 2px 13px -2px rgba(0, 0, 0, .18);
@@ -1153,13 +1360,10 @@
     overflow: hidden;
     padding: 10px;
     border: 1px solid #ccc;
-    transform: scale(.85);
-    transition: opacity .2s ease, transform .2s ease;
+    transition: opacity .15s ease;
 }
 #lc-color-picker.lccp-shown {
     visibility: visible;
-    z-index: 999;
-    transform: none;
     opacity: 1;
 
 }
@@ -1211,7 +1415,7 @@
 	margin: 0;
 }
 .lccp_gradient_ranges {
-    margin: 2px 1px 25px 2px;
+    margin: 2px 7px 25px 8px;
     height: 20px;
 }
 .lccp_gradient_range {
@@ -1431,7 +1635,19 @@
     const maybe_querySelectorAll = (selector) => {
              
         if(typeof(selector) != 'string') {
-            return (selector instanceof Element) ? [selector] : Object.values(selector);   
+            if(selector instanceof Element) { // JS or jQuery 
+                return [selector];
+            }
+            else {
+                let to_return = [];
+                
+                for(const obj of selector) {
+                    if(obj instanceof Element) {
+                        to_return.push(obj);    
+                    }
+                }
+                return to_return;
+            }
         }
         
         // clean problematic selectors

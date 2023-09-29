@@ -7,7 +7,7 @@ So I decided to build my own solution in **pure javascript** aiming to create th
 
 ### Top features list:
 
-- sigle 31KB file, no dependencies, 100% pure javascript
+- sigle 34KB file, no dependencies, 100% pure javascript
 - supports solid color and/on linear gradient and/or radial gradient
 - unlimited gradient color steps support
 - optional transparency support

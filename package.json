@@ -1,7 +1,7 @@
 {
     "author": "LCweb",
     "name": "lc-color-picker",
-    "version": "1.1.1",
+    "version": "2.0.0",
     "description": "Pure javascript colorpicker for modern web. Supporting solid colors, opacity and gradients",
     "keywords": [
         "javascript",
